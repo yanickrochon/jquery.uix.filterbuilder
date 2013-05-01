@@ -10,7 +10,7 @@ JavaScript data filters, etc.
 
 The default implemented is intended for JavaScript filters.
 
-Features
+Requirements
 ------------
 
 Dependency : [jQuery](http://jquery.com/) and [jQuery UI](http://jqueryui.com/)
