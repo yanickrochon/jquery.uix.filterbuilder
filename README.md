@@ -1,11 +1,11 @@
-jQuery UIx QueryBuilder
+jQuery UIx FilterBuilder
 ==================
 Version 0.1
 
 Introduction
 ------------
 
-Create any filter string using this query builder widget. Fully customizable, it is suitable for SQL `WHERE`,
+Create any filter string using this builder widget. Fully customizable, it is suitable for SQL `WHERE`,
 JavaScript data filters, etc.
 
 The default implemented is intended for JavaScript filters.
