@@ -26,7 +26,7 @@
 			'<td><div class="expr-conditions"></div><div class="expr-new-condition"></div></td>' +
 		'</tr></tbody></table>';
 	var CLAUSE_SKELETON = '<table class="expr-condition"><tbody><tr>' +
-			'<td><div class="expr-field"></div></td><td><div class="expr-operator"></div></td><td><div class="expr-params"></div></td>' +
+			'<td><div class="expr-controls"></div></td><td><div class="expr-field"></div></td><td><div class="expr-operator"></div></td><td><div class="expr-params"></div></td>' +
 		'</tr></tbody></table>';
 
 
@@ -35,6 +35,7 @@
 			// options
 			fields: [],                           // an array of available fields (string)
 			defaultFieldOperator: "field.equal",  // when creating a new clause, use this operator (should start with "field.")
+			locale: 'auto',                       // the widget's locale
 			fieldEncloseStart: "",                // enclose field names; start string
 			fieldEncloseEnd: "",                  // enclose field names; end string
 			subClauseEncloseStart: "(",           // enclose sub clause; start string
@@ -64,7 +65,6 @@
 				"expr.match.none": ["@1 {:oper.or} @2", "!(@1)"],
 
 				// field operators, where @1 is the field and @2, @3 are the field params
-				"field.equal.field": "@1 {:oper.ieq} @2",
 				"field.equal": "@1 {:oper.ieq} @2",
 				"field.not.equal": "@1 {:oper.ineq} @2",
 				"field.match": "@1 {:oper.eq} @2",
@@ -94,6 +94,7 @@
 		},
 
 		_create: function () {
+			this._setLocale();
 			this._initFilter(this.element);
 
 
@@ -101,11 +102,15 @@
 		},
 
 		_setOption: function (key, value) {
-			// TODO : implement this
+			if (key === "locale") {
+				this._setLocale(value);
+			}
+			
+			this._delay("refresh");
 		},
 
 		//_refresh: function () {
-			// TODO : destroy and rebuild the whole tree ???
+			// TODO : replace all SELECT elements options, update buttons text
 		//},
 
 		_destroy: function () {
@@ -116,7 +121,23 @@
 			this.element.empty();  // cleanup everything
 		},
 
+		_setLocale: function (locale) {
+			locale = locale || this.options.locale || 'auto';
 
+			if (locale == 'auto') {
+				locale = navigator.userLanguage ||
+                         navigator.language ||
+                         navigator.browserLanguage ||
+                         navigator.systemLanguage ||
+                         '';
+			}
+			if (!$.uix.filterbuilder.i18n[locale]) {
+				locale = '';   // revert to default is not supported auto locale
+			}
+			this.options.locale = locale;
+
+			this._t = $.uix.filterbuilder.i18n[locale];
+		},
 
 
 		_initFilter: function(element) {
@@ -135,7 +156,10 @@
 
 			$.each(self.options.operators, function (oper, expression) {
 				if (oper.indexOf(prefix) === 0) {
-					select.append($("<option>").prop("selected", oper === self.options.defaultFieldOperator).val(oper).text(t[oper]));
+					select.append($("<option>")
+						.prop("selected", oper === self.options.defaultFieldOperator)
+						.val(oper)
+						.text(self._t[oper]));
 				}
 			});
 		
@@ -147,9 +171,10 @@
 
 		_clauseCondition: function(operator) {
 			var self = this;
+
 			return $(CLAUSE_SKELETON)
-				.find(".expr-field")
-					.append($('<a href="#remove" role="button">').text(t["btn.remove"]).on("click", function(e) {
+				.find(".expr-controls")
+					.append($('<a href="#remove" role="button">').text(self._t["btn.remove"]).on("click", function(e) {
 						var count = $(this).closest(".expr-conditions").find(".expr-condition").length;
 						var currentClause = $(this).closest(".sub-clause");
 
@@ -177,7 +202,8 @@
 						currentClause.remove(); // cleanup
 
 						return e.preventDefault(), e.stopPropagation(), false;
-					}))
+					})).end()
+				.find(".expr-field")
 					.append(r.fieldName(self, "@1")).end()
 				.find(".expr-operator").append(self._clauseOperatorsSelect(FIELD_OPERATOR_PREFIX).on("change", function (e) {
 					var oldParams = $(this).closest(".expr-condition").find(".expr-params").children();
@@ -212,7 +238,7 @@
 		_clauseAddCondition: function () {
 			var self = this;
 			return $("<div>")
-				.append($('<a href="#add" role="button">').text(t["btn.add"]).on("click", function (e) {
+				.append($('<a href="#add" role="button">').text(self._t["btn.add"]).on("click", function (e) {
 					var currentClause = self._clauseCondition();
 
 					$(this).closest(".expr-new-condition").siblings(".expr-conditions").append(currentClause);
@@ -221,7 +247,7 @@
 
 					return e.preventDefault(), e.stopPropagation(), false;
 				}))
-				.append($('<a href="#add-sub" role="button">').text(t["btn.add.sub"]).on("click", function (e) {
+				.append($('<a href="#add-sub" role="button">').text(self._t["btn.add.sub"]).on("click", function (e) {
 					var subFilter = $("<div>").addClass("sub-clause");
 					self._initFilter(subFilter);
 					$(this).closest(".expr-new-condition").before(subFilter);
@@ -383,45 +409,37 @@
 	};
 
 	var t = $.uix.filterbuilder.i18n = {
-		"expr.match.all": "Match All",
-		"expr.match.any": "Match Any",
-		"expr.match.none": "Match.none",
-		
-		"field.equal.field": "equal field",
-		"field.equal": "equals",
-		"field.not.equal": "not equals",
-		"field.match": "matches",
-		"field.not.match": "differs from",
-		"field.null": "is null",
-		"field.not.null": "is not null",
-		"field.between": "between (exclusive)",
-		"field.between.inc": "between (inclusive)",
-		"field.contain": "contains",
-		"field.not.contain": "does not contain",
-		"field.start.with": "starts with",
-		"field.not.start.with": "does not start with",
-		"field.end.with": "ends with",
-		"field.not.end.with": "does not end with",
-		"field.less.than": "less than",
-		"field.less.than.equal": "less than or equal to",
-		"field.greater.than": "greater than",
-		"field.greater.than.equal": "greater than or equal to",
+		'': {
+			"expr.match.all": "Match All",
+			"expr.match.any": "Match Any",
+			"expr.match.none": "Match.none",
 
-		"btn.add": "Add",
-		"btn.add.sub": "Add Sub",
-		"btn.remove": "Remove"
+			"field.equal": "equals",
+			"field.not.equal": "not equals",
+			"field.match": "matches",
+			"field.not.match": "differs from",
+			"field.null": "is null",
+			"field.not.null": "is not null",
+			"field.between": "between (exclusive)",
+			"field.between.inc": "between (inclusive)",
+			"field.contain": "contains",
+			"field.not.contain": "does not contain",
+			"field.start.with": "starts with",
+			"field.not.start.with": "does not start with",
+			"field.end.with": "ends with",
+			"field.not.end.with": "does not end with",
+			"field.less.than": "less than",
+			"field.less.than.equal": "less than or equal to",
+			"field.greater.than": "greater than",
+			"field.greater.than.equal": "greater than or equal to",
 
+			"btn.add": "Add",
+			"btn.add.sub": "Add Sub",
+			"btn.remove": "Remove"
+		}
 	};
 
 	var cParams = $.uix.filterbuilder.clauseParams = {
-		"field.equal.field": {
-			render: function () {
-				return r.fieldName(this, "@2");
-			},
-			getValues: function (element) {
-				return [this.options.fieldEncloseStart + element.find("input[type='text']").val() + this.options.fieldEncloseEnd];
-			}
-		},
 		"field.equal": clauseSingleTextParam(),
 		"field.not.equal": clauseSingleTextParam(),
 		"field.match": clauseSingleTextParam(),
