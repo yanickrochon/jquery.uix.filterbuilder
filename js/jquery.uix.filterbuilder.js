@@ -1,13 +1,10 @@
 /*
- * jQuery UIx QueryBuilder
+ * jQuery UIx FilterBuilder
  *
  * Authors:
  *  Yanick Rochon (yanick.rochon[at]gmail[dot]com)
  *
  * Licensed under the MIT (MIT-LICENSE.txt) license.
- *
- * http://mind2soft.com/labs/jquery/tabs/
- *
  *
  * Depends:
  * jQuery UI 1.9+
@@ -16,14 +13,14 @@
 
 (function( $, undefined ) {
 
-  var PARAM_REGEX = new RegExp("@(\\d+)", 'gi');
+    var PARAM_REGEX = new RegExp("@(\\d+)", 'gi');
 	var EXPRESSION_REGEX = new RegExp("\\{:([^/}]+)(/(\d+))?\\}", 'gi');
 
 	var EXPRESSION_OPERATOR_PREFIX = "expr.";
 	var FIELD_OPERATOR_PREFIX = "field.";
 
 
-	var QUERY_SKELETON = '<table class="expr-clause"><tbody><tr>' +
+	var FILTER_SKELETON = '<table class="expr-clause"><tbody><tr>' +
 			'<td><div class="expr-select"></div></td>' +
 			'<td class="ui-widget-content ui-corner-left" style="width: 8px; border-right:none;"></td> ' +
 			'<td><div class="expr-conditions"></div><div class="expr-new-condition"></div></td>' +
@@ -33,7 +30,7 @@
 		'</tr></tbody></table>';
 
 
-	$.widget("uix.querybuilder", {
+	$.widget("uix.filterbuilder", {
 		options: {
 			// options
 			fields: [],                           // an array of available fields (string)
@@ -42,7 +39,7 @@
 			fieldEncloseEnd: "",                  // enclose field names; end string
 			subClauseEncloseStart: "(",           // enclose sub clause; start string
 			subClauseEncloseEnd: ")",             // enclose sub clause; start string
-			operators: {                          // all the available operators for the query builder
+			operators: {                          // all the available operators for the filter builder
 				// NOTE : operators may be referenced by other operators. Ex:
 				//        "@1 {:oper.eq} @2"                     resolves to "@1 == @2"
 				//        "{:expr.match.none/1} {:oper.neq} @2"  resolves to "!(@1) != @2" 
@@ -93,11 +90,11 @@
 			clauseAdded: null,        // event triggered when a new clause is added; ui receives the clause element container created
 			clauseRemoved: null,      // event triggered when a clause is removed; ui receives the detached clause element
 			clauseParamsChange: null, // event triggered when a clause operator has changed, thus changing the params
-			change: null              // event triggered when the query build has changed
+			change: null              // event triggered when the filter builder has changed
 		},
 
 		_create: function () {
-			this._initQuery(this.element);
+			this._initFilter(this.element);
 
 
 			this._trigger("create");
@@ -122,8 +119,8 @@
 
 
 
-		_initQuery: function(element) {
-			return $(QUERY_SKELETON)
+		_initFilter: function(element) {
+			return $(FILTER_SKELETON)
 				.find(".expr-select").append(this._clauseOperatorsSelect(EXPRESSION_OPERATOR_PREFIX)).end()
 				.find(".expr-conditions").append(this._clauseCondition(null /* default */)).end()
 				.find(".expr-new-condition").append(this._clauseAddCondition()).end()
@@ -225,11 +222,11 @@
 					return e.preventDefault(), e.stopPropagation(), false;
 				}))
 				.append($('<a href="#add-sub" role="button">').text(t["btn.add.sub"]).on("click", function (e) {
-					var subQuery = $("<div>").addClass("sub-clause");
-					self._initQuery(subQuery);
-					$(this).closest(".expr-new-condition").before(subQuery);
+					var subFilter = $("<div>").addClass("sub-clause");
+					self._initFilter(subFilter);
+					$(this).closest(".expr-new-condition").before(subFilter);
 
-					self._trigger("clauseAdded", e, { subClause: subQuery });
+					self._trigger("clauseAdded", e, { subClause: subFilter });
 
 					return e.preventDefault(), e.stopPropagation(), false;
 				}))
@@ -360,7 +357,7 @@
 	};
 
 
-	var r = $.uix.querybuilder.renderers = {
+	var r = $.uix.filterbuilder.renderers = {
 		fieldName: function (ctx, paramName, value) {
 			return $('<input type="text" />')
 				.attr("name", "fields[]")
@@ -385,7 +382,7 @@
 		}
 	};
 
-	var t = $.uix.querybuilder.i18n = {
+	var t = $.uix.filterbuilder.i18n = {
 		"expr.match.all": "Match All",
 		"expr.match.any": "Match Any",
 		"expr.match.none": "Match.none",
@@ -416,7 +413,7 @@
 
 	};
 
-	var cParams = $.uix.querybuilder.clauseParams = {
+	var cParams = $.uix.filterbuilder.clauseParams = {
 		"field.equal.field": {
 			render: function () {
 				return r.fieldName(this, "@2");
