@@ -13,11 +13,8 @@
 
 (function( $, undefined ) {
 
-    var PARAM_REGEX = new RegExp("@(\\d+)", 'gi');
-	var EXPRESSION_REGEX = new RegExp("\\{:([^/}]+)(/(\d+))?\\}", 'gi');
-
-	var EXPRESSION_OPERATOR_PREFIX = "expr.";
-	var FIELD_OPERATOR_PREFIX = "field.";
+    var PARAM_REGEX = new RegExp("(@\\d+)", 'gi');
+	var EXPRESSION_REGEX = new RegExp("\\{:([^}]+)\\}", 'gi');
 
 
 	var FILTER_SKELETON = '<table class="expr-clause"><tbody><tr>' +
@@ -33,68 +30,21 @@
 	$.widget("uix.filterbuilder", {
 		options: {
 			// options
-			fields: [],                           // an array of available fields (string)
-			defaultFieldOperator: "field.equal",  // when creating a new clause, use this operator (should start with "field.")
-			locale: 'auto',                       // the widget's locale
-			fieldEncloseStart: "",                // enclose field names; start string
-			fieldEncloseEnd: "",                  // enclose field names; end string
-			subClauseEncloseStart: "(",           // enclose sub clause; start string
-			subClauseEncloseEnd: ")",             // enclose sub clause; start string
-			operators: {                          // all the available operators for the filter builder
-				// NOTE : operators may be referenced by other operators. Ex:
-				//        "@1 {:oper.eq} @2"                     resolves to "@1 == @2"
-				//        "{:expr.match.none/1} {:oper.neq} @2"  resolves to "!(@1) != @2" 
-				//        Resolution is performed recursively, there is no other substitution.
-
-				// general operators
-				"oper.ieq": "===",
-				"oper.ineq": "!==",
-				"oper.eq": "==",
-				"oper.neq": "!=",
-				"oper.lt": "<",
-				"oper.lte": "<=",
-				"oper.gt": ">",
-				"oper.gte": ">=",
-				"oper.and": "&&",
-				"oper.or": "||",
-
-				// expression clause grouping operator, where @1 and @2 are left and write clauses
-				// if an array, first element is grouping left and right, second element wraps the entire clause
-				"expr.match.all": "@1 {:oper.and} @2",
-				"expr.match.any": "@1 {:oper.or} @2",
-				"expr.match.none": ["@1 {:oper.or} @2", "!(@1)"],
-
-				// field operators, where @1 is the field and @2, @3 are the field params
-				"field.equal": "@1 {:oper.ieq} @2",
-				"field.not.equal": "@1 {:oper.ineq} @2",
-				"field.match": "@1 {:oper.eq} @2",
-				"field.not.match": "@1 {:oper.neq} @2",
-				"field.null": "@1 {:oper.ieq} null {:oper.or} @1 {:oper.ieq} undefined",
-				"field.not.null": "@1 {:oper.ineq} null {:oper.or} @1 {:oper.ineq} undefined",
-				"field.between": "(@1 {:oper.gt} @2 {:oper.and} @1 {:oper.lt} @3)",
-				"field.between.inc": "(@1 {:oper.gte} @2 {:oper.and} @1 {:oper.lte} @3)",
-				"field.contain": "@1.indexOf(@2) {:oper.gte} -1",
-				"field.not.contain": "@1.indexOf(@2) {:oper.ieq} -1",
-				"field.start.with": "@1.indexOf(@2) {:oper.gte} 0",
-				"field.not.start.with": "@1.indexOf(@2) {:oper.ineq} 0",
-				"field.end.with": "@1.indexOf(@2) {:oper.ieq} (@1.length - @2.length)",
-				"field.not.end.with": "@1.indexOf(@2) {:oper.ineq} (@1.length - @2.length)",
-				"field.less.than": "@1 {:oper.lt} @2",
-				"field.less.than.equal": "@1 {:oper.lte} @2",
-				"field.greater.than": "@1 {:oper.gt} @2",
-				"field.greater.than.equal": "@1 {:oper.gte} @2"
-			},
+			fields: [],               // an array of available fields (string)
+			locale: 'auto',           // the widget's locale
+            rule: 'js',               // the filter rules to apply
 
 			// events
 			create: null,             // event triggered when the widget has been created
 			clauseAdded: null,        // event triggered when a new clause is added; ui receives the clause element container created
-			clauseRemoved: null,      // event triggered when a clause is removed; ui receives the detached clause element
+			clauseRemoved: null,      // event triggerformatExpressioned when a clause is removed; ui receives the detached clause element
 			clauseParamsChange: null, // event triggered when a clause operator has changed, thus changing the params
 			change: null              // event triggered when the filter builder has changed
 		},
 
 		_create: function () {
 			this._setLocale();
+            this._setRule();
 			this._initFilter(this.element);
 
 
@@ -104,14 +54,16 @@
 		_setOption: function (key, value) {
 			if (key === "locale") {
 				this._setLocale(value);
-			}
-			
+			} else if (key === "rule") {
+                this._setRule(value);
+            }
+
 			this._delay("refresh");
 		},
 
-		//_refresh: function () {
+		_refresh: function () {
 			// TODO : replace all SELECT elements options, update buttons text
-		//},
+		},
 
 		_destroy: function () {
 			this._trigger("clauseRemoved", null, {
@@ -122,6 +74,8 @@
 		},
 
 		_setLocale: function (locale) {
+            var t;
+
 			locale = locale || this.options.locale || 'auto';
 
 			if (locale == 'auto') {
@@ -135,34 +89,46 @@
 				locale = '';   // revert to default is not supported auto locale
 			}
 			this.options.locale = locale;
-
-			this._t = $.uix.filterbuilder.i18n[locale];
+            t = $.uix.filterbuilder.i18n[locale];
+			this._t = function(key) {
+                return t[key] || key;
+            };
 		},
 
+        _setRule: function(rule) {
+            rule = rule || this.options.rule;
+
+            if (!$.uix.filterbuilder.rules[rule]) {
+                throw ("Specified rule not found : " + rule);
+            }
+
+            this.options.rule = rule;
+            this._r = $.uix.filterbuilder.rules[rule];
+        },
 
 		_initFilter: function(element) {
 			return $(FILTER_SKELETON)
-				.find(".expr-select").append(this._clauseOperatorsSelect(EXPRESSION_OPERATOR_PREFIX)).end()
+				.find(".expr-select").append(this._clauseOperatorsSelect(true)).end()
 				.find(".expr-conditions").append(this._clauseCondition(null /* default */)).end()
 				.find(".expr-new-condition").append(this._clauseAddCondition()).end()
 				.appendTo(element)
 			;
 		},
 
-		
-		_clauseOperatorsSelect: function(prefix) {
+
+		_clauseOperatorsSelect: function(clauseExpressions) {
 			var select = $("<select>");
 			var self = this;
+            var defOperKey = "default" + (clauseExpressions ? "Clause" : "Field") + "Expression";
+            var defOper = this._r[defOperKey];
 
-			$.each(self.options.operators, function (oper, expression) {
-				if (oper.indexOf(prefix) === 0) {
-					select.append($("<option>")
-						.prop("selected", oper === self.options.defaultFieldOperator)
-						.val(oper)
-						.text(self._t[oper]));
-				}
+			$.each(this._r[(clauseExpressions ? "clause" : "field") + "Expressions"], function (oper, expression) {
+				select.append($("<option>")
+					.prop("selected", oper === defOper)
+					.val(oper)
+					.text(self._t(oper)));
 			});
-		
+
 			return select.on("change", function (e) {
 				// TODO : add UI object context... ?
 				self._trigger("change");
@@ -172,9 +138,11 @@
 		_clauseCondition: function(operator) {
 			var self = this;
 
+            operator = operator || this._r.defaultFieldExpression;
+
 			return $(CLAUSE_SKELETON)
 				.find(".expr-controls")
-					.append($('<a href="#remove" role="button">').text(self._t["btn.remove"]).on("click", function(e) {
+					.append($('<a href="#remove" role="button">').text(self._t("btn.remove")).on("click", function(e) {
 						var count = $(this).closest(".expr-conditions").find(".expr-condition").length;
 						var currentClause = $(this).closest(".sub-clause");
 
@@ -183,7 +151,7 @@
 								clause: (currentClause = $(this).closest(".expr-condition").detach())
 							});
 						} else if (currentClause.length) {
-						
+
 							var subClause = currentClause.find(".sub-clause").filter(function(e) {
 								return $(this).parentsUntil(currentClause, ".sub-clause").length === 0;
 							}).detach();
@@ -203,42 +171,67 @@
 
 						return e.preventDefault(), e.stopPropagation(), false;
 					})).end()
-				.find(".expr-field")
-					.append(r.fieldName(self, "@1")).end()
-				.find(".expr-operator").append(self._clauseOperatorsSelect(FIELD_OPERATOR_PREFIX).on("change", function (e) {
-					var oldParams = $(this).closest(".expr-condition").find(".expr-params").children();
+				.find(".expr-field").append( self._clauseField(operator) ).end()
+				.find(".expr-operator").append(self._clauseOperatorsSelect().on("change", function (e) {
+                    var params = $(this).closest(".expr-condition").find(".expr-params");
+					var oldParams = params.children();
 					var newParams = self._clauseParams($(this).val());
 
 					// transfer old -> new params
-					newParams.find(":data(param-name)").each(function (i, nel) {
-						var param = $(nel).data("param-name");
-						oldParams.find(":data(param-name)").each(function (i, oel) {
-							if ($(oel).data("param-name") === param) {
+					newParams.filter("[data-param-name]").each(function (i, nel) {
+						oldParams.filter("[data-param-name]").each(function (i, oel) {
+							if (($(oel).data("param-name") === $(nel).data("param-name")) && ($(oel).prop("nodeName") === $(nel).prop("nodeName"))) {
 								$(nel).val($(oel).val());
-								return false;
+                                if ($(oel).is(":checked")) {
+                                    $(nel).prop("checked", true);
+                                }
 							}
 						});
 					});
-
-					oldParams.replaceWith(newParams);
 
 					self._trigger("clauseParamsChange", e, {
 						oldParams: oldParams,
 						newParams: newParams
 					});
+
+					params.empty().append(newParams);
+
 				})).end()
-				.find(".expr-params").append(self._clauseParams()).end();
+				.find(".expr-params").append( self._clauseParams(operator) ).end();
 			;
 		},
 
+        _clauseField: function (operator) {
+            var self = this;
+            var expr = this._r.fieldExpressions[operator];
+
+            if (expr.params["@1"]) {
+                return this._r.paramHandlers[expr.params["@1"]].render.call(this).attr("data-param-name", "@1")
+                    .on("change", function(e) {	self._trigger("change", e); });
+            } else {
+                return $("<span>");
+            }
+        },
+
 		_clauseParams: function (operator) {
-			return $("<div>").append(cParams[operator || this.options.defaultFieldOperator].render.call(this));
+            var self = this;
+            var expr = this._r.fieldExpressions[operator];
+            var params = $();
+
+            $.each(expr.params, function(name, renderer) {
+                if (name !== "@1") {
+                    params = params.add( self._r.paramHandlers[renderer].render.call(self).attr("data-param-name", name)
+                        .on("change", function(e) {	self._trigger("change", e); }) );
+                }
+            });
+
+			return params;
 		},
 
 		_clauseAddCondition: function () {
 			var self = this;
 			return $("<div>")
-				.append($('<a href="#add" role="button">').text(self._t["btn.add"]).on("click", function (e) {
+				.append($('<a href="#add" role="button">').text(self._t("btn.add")).on("click", function (e) {
 					var currentClause = self._clauseCondition();
 
 					$(this).closest(".expr-new-condition").siblings(".expr-conditions").append(currentClause);
@@ -247,7 +240,7 @@
 
 					return e.preventDefault(), e.stopPropagation(), false;
 				}))
-				.append($('<a href="#add-sub" role="button">').text(self._t["btn.add.sub"]).on("click", function (e) {
+				.append($('<a href="#add-sub" role="button">').text(self._t("btn.add.sub")).on("click", function (e) {
 					var subFilter = $("<div>").addClass("sub-clause");
 					self._initFilter(subFilter);
 					$(this).closest(".expr-new-condition").before(subFilter);
@@ -269,10 +262,8 @@
 	function _compile(element, ctx) {
 		var self = this;
 		var left = null;
-		var fieldStart = ctx.options.fieldEncloseStart;
-		var fieldEnd = ctx.options.fieldEncloseEnd;
-		var subClauseStart = ctx.options.subClauseEncloseStart;
-		var subClauseEnd = ctx.options.subClauseEncloseEnd;
+		var subClauseStart = ctx._r.clauseEscape.start;
+		var subClauseEnd = ctx._r.clauseEscape.end;
 
 		element.find("table.expr-clause").filter(function (e) {
 			return $(this).parentsUntil(element, "table.expr-clause").length === 0;
@@ -284,15 +275,17 @@
 				return $(this).parentsUntil(subClause, "table.expr-clause").length === 0;
 			}).find(".expr-condition").each(function (i, clause) {
 				var operator = $(clause).find(".expr-operator select").val();
-				var values = [fieldStart + $(clause).find(".expr-field input").val() + fieldEnd];
-				$(clause).find(".expr-params").each(function (i, params) {
-					values = values.concat(cParams[operator].getValues.call(ctx, $(params)));
-				});
+                var expr = ctx._r.fieldExpressions[operator];
+				var values = {};
 
-				right = formatExpression(operator, ctx.options.operators, values);
+                $.each(expr.params, function(name, renderer) {
+                    values[name] = ctx._r.paramHandlers[renderer].format.call(self, $(clause).find("[data-param-name='" + name + "']")) || "";
+                });
+
+				right = formatExpression(ctx._r.fieldExpressions[operator].pattern, ctx._r.operators, values);
 
 				if (left) {
-					left = formatExpression(glue, ctx.options.operators, [left, right]);
+					left = formatExpression(ctx._r.clauseExpressions[glue].pattern, ctx._r.operators, [left, right]);
 				} else {
 					left = right;
 				}
@@ -301,14 +294,14 @@
 			right = _compile($(subClause), ctx);
 			if (right) {
 				if (left) {
-					left = formatExpression(glue, ctx.options.operators, [left, subClauseStart + right + subClauseEnd]);
+					left = formatExpression(ctx._r.clauseExpressions[glue].pattern, ctx._r.operators, [left, subClauseStart + right + subClauseEnd]);
 				} else {
 					left = right;
 				}
 			}
 
 			// wrap if necessary
-			right = formatExpression(glue, ctx.options.operators, [left], 1);
+			right = formatExpression(ctx._r.clauseExpressions[glue].wrap, ctx._r.operators, { "@1": left });
 			if (right) {
 				left = right;
 			}
@@ -317,95 +310,15 @@
 		return left;
 	};
 
-	function formatExpression(key, operators, values, keyIndex) {
-		values = values || [];
-		return (function _expr(key, keyIndex) {
-			var operatorExpr = "";
+	function formatExpression(pattern, operators, paramValues) {
+        if (!pattern) return false;
+		paramValues = paramValues || [];
 
-			if (operators[key]) {
-				operatorExpr = operators[key];
-
-				if ($.isArray(operatorExpr)) {
-					operatorExpr = operatorExpr[keyIndex || 0];
-				} else if (keyIndex > 0) {
-					return "";
-				}
-			} else {
-				return "";
-			}
-
-			return operatorExpr.replace(EXPRESSION_REGEX, function (g, e) {
-				return _expr(e);
-			});
-		})(key, keyIndex).replace(PARAM_REGEX, function (g, p) {
-			return p <= values.length ? values[p - 1] : "false";
+		return pattern.replace(EXPRESSION_REGEX, function (g, e) {
+			return operators[e];
+		}).replace(PARAM_REGEX, function (g, p) {
+			return paramValues[p] || "false";
 		});
-	};
-
-
-	function quoteParam(value) {
-		if (isNaN(parseFloat(value))) {
-			value = '"' + value + '"';
-		}
-		return value;
-	};
-
-	function clauseNoParam() {
-		return {
-			render: function () { return $("<span>"); },
-			getValues: $.noop
-		};
-	};
-	function clauseSingleTextParam() {
-		return {
-			render: function () {
-				return r.fieldValue(this, "@2");
-			},
-			getValues: function (element) {
-				return [quoteParam(element.find("input[type='text']").val())];
-			}
-		};
-	};
-	function clauseDoubleTextParams(values) {
-		return {
-			render: function () {
-				return r.fieldValue(this, "@2").add(r.fieldValue(this, "@3"));
-			},
-			getValues: function (params) {
-				var res = [];
-				$.each(params.find("input[type='text']"), function (i, input) {
-					res.push(quoteParam($(input).val()));
-				});
-				
-				return res;
-			}
-		};
-	};
-
-
-	var r = $.uix.filterbuilder.renderers = {
-		fieldName: function (ctx, paramName, value) {
-			return $('<input type="text" />')
-				.attr("name", "fields[]")
-				.attr("aria-autocomplete", "inline")
-				.data("param-name", paramName || "@1").val(value || "")
-				.on("change", function (e) {
-					// TODO : add UI object context... ?
-					ctx._trigger("change");
-				})
-			;
-		},
-		fieldValue: function (ctx, paramName, value) {
-			return $('<input type="text" />')
-				.attr("name", "values[]")
-				.attr("aria-autocomplete", "inline")
-				.data("param-name", paramName).val(value || "")
-				.on("change", function () {
-					// TODO : add UI object context... ?
-					ctx._trigger("change");
-				})
-			;
-		}
 	};
 
 	var t = $.uix.filterbuilder.i18n = {
@@ -414,50 +327,34 @@
 			"expr.match.any": "Match Any",
 			"expr.match.none": "Match.none",
 
-			"field.equal": "equals",
-			"field.not.equal": "not equals",
-			"field.match": "matches",
-			"field.not.match": "differs from",
-			"field.null": "is null",
-			"field.not.null": "is not null",
-			"field.between": "between (exclusive)",
-			"field.between.inc": "between (inclusive)",
-			"field.contain": "contains",
-			"field.not.contain": "does not contain",
-			"field.start.with": "starts with",
-			"field.not.start.with": "does not start with",
-			"field.end.with": "ends with",
-			"field.not.end.with": "does not end with",
-			"field.less.than": "less than",
-			"field.less.than.equal": "less than or equal to",
-			"field.greater.than": "greater than",
-			"field.greater.than.equal": "greater than or equal to",
+			"expr.equal": "equals",
+			"expr.not.equal": "not equals",
+			"expr.match": "matches",
+			"expr.not.match": "differs from",
+			"expr.null": "is null",
+			"expr.not.null": "is not null",
+			"expr.between": "between (exclusive)",
+			"expr.between.inc": "between (inclusive)",
+			"expr.contain": "contains",
+			"expr.not.contain": "does not contain",
+			"expr.start.with": "starts with",
+			"expr.not.start.with": "does not start with",
+			"expr.end.with": "ends with",
+			"expr.not.end.with": "does not end with",
+			"expr.less.than": "less than",
+			"expr.less.than.equal": "less than or equal to",
+			"expr.greater.than": "greater than",
+			"expr.greater.than.equal": "greater than or equal to",
 
 			"btn.add": "Add",
 			"btn.add.sub": "Add Sub",
-			"btn.remove": "Remove"
+			"btn.remove": "Remove",
+
+            "param.check.field": "Field"
 		}
 	};
 
-	var cParams = $.uix.filterbuilder.clauseParams = {
-		"field.equal": clauseSingleTextParam(),
-		"field.not.equal": clauseSingleTextParam(),
-		"field.match": clauseSingleTextParam(),
-		"field.not.match": clauseSingleTextParam(),
-		"field.null": clauseNoParam(),
-		"field.not.null": clauseNoParam(),
-		"field.between": clauseDoubleTextParams(),
-		"field.between.inc": clauseDoubleTextParams(),
-		"field.contain": clauseSingleTextParam(),
-		"field.not.contain": clauseSingleTextParam(),
-		"field.start.with": clauseSingleTextParam(),
-		"field.not.start.with": clauseSingleTextParam(),
-		"field.end.with": clauseSingleTextParam(),
-		"field.not.end.with": clauseSingleTextParam(),
-		"field.less.than": clauseSingleTextParam(),
-		"field.less.than.equal": clauseSingleTextParam(),
-		"field.greater.than": clauseSingleTextParam(),
-		"field.greater.than.equal": clauseSingleTextParam()
-	};
+    // must define roles elsewhere
+    $.uix.filterbuilder.rules = {}
 
 })(jQuery);

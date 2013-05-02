@@ -10,6 +10,9 @@ JavaScript data filters, etc.
 
 The default implemented is intended for JavaScript filters.
 
+**Note**: this is an experimental widget, it is not ready for production environments!
+
+
 Requirements
 ------------
 

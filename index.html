@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>jQuery FilterBuilder</title>
+        <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/themes/cupertino/jquery-ui.css" />
+        <script src="http://code.jquery.com/jquery-1.9.0.min.js"></script>
+        <script src="http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"></script>
+        <script type="text/javascript" src="js/jquery.uix.filterbuilder.js"></script>
+        <script type="text/javascript" src="js/locales/jquery.uix.filterbuilder_fr.js"></script>
+        <script type="text/javascript" src="js/rules/jquery.uix.filterbuilder_js.js"></script>
+        <script type="text/javascript">
+            $(function() {
+
+                $("#filterBuilder").filterbuilder({
+
+                    change: function() {
+                        console.log($(this).filterbuilder("compile"));
+                    }
+                });
+
+            });
+        </script>
+        <style type="text/css">
+            body { font-size: 0.75em; }
+        </style>
+    </head>
+    <body>
+
+        <h1>jQuery UIx FilterBuilder Demo</h1>
+
+        <div id="filterBuilder">
+        </div>
+
+    </body>
+</html>
