@@ -101,7 +101,6 @@
                 },
                 deserialize: function(data) {
                     var parts = data.split("=");
-                    console.log(parts);
                     return rules.paramHandlers["field"].render.call(this).attr("data-param-name", parts[0]).val(parts[1] || "");
                 }
             },
