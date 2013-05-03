@@ -188,13 +188,12 @@
 						});
 					});
 
+					params.empty().append(newParams);
+
 					self._trigger("clauseParamsChange", e, {
 						oldParams: oldParams,
 						newParams: newParams
 					});
-
-					params.empty().append(newParams);
-
 				})).end()
 				.find(".expr-params").append( self._clauseParams(false, operator, params) ).end();
 			;
