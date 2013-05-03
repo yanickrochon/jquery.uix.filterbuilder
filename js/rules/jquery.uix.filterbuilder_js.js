@@ -14,8 +14,8 @@
 
 (function ($) {
 
-    var FIELD_ESCAPE_START = "[";
-    var FIELD_ESCAPE_END = "]";
+    var FIELD_ESCAPE_START = "";
+    var FIELD_ESCAPE_END = "";
     var STRING_ESCAPE_START = "\"";
     var STRING_ESCAPE_END = "\"";
 
