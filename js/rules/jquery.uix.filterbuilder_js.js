@@ -40,7 +40,7 @@
         defaultFieldExpression: "expr.equal",
 
         // NOTE : operators may be referenced by expression patterns. Ex:
-		//        "@1 {:eq} @2"                     resolves to "@1 == @2"
+    	//        "@1 {:eq} @2"                     resolves to "@1 == @2"
 		//        "{:not}@1 {:neq} @2"  resolves to "!@1 != @2"
         operators: {
 			"ieq": "===",
@@ -130,15 +130,15 @@
                 },
                 serialize: function(element) {
                     var checked = element.filter("input:checkbox").is(":checked");
-                    var val = element.filter("input[type='text']").val() || "";
+                    var val = element.find("input[type='text']").val() || "";
                     return element.data("param-name") + "=" + (checked ? 1 : 0) + "/" + val;
                 },
                 deserialize: function(data) {
                     var parts = data.split("=");
                     var vals = (parts[1] || "").split("/");
                     return rules.paramHandlers["any"].render.call(this)
-                        .filter("input[type='checkbox']").prop("checked", !!parseInt(vals[0])).end()
-                        .filter("input[type='text']").val(vals[1] || "").end();
+                        .find("input[type='checkbox']").prop("checked", !!parseInt(vals[0])).end()
+                        .find("input[type='text']").val(vals[1] || "").end();
                 }
             }
         }
