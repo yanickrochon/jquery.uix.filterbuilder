@@ -6,16 +6,23 @@
         <link rel="stylesheet" href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/themes/cupertino/jquery-ui.css" />
         <script src="http://code.jquery.com/jquery-1.9.0.min.js"></script>
         <script src="http://code.jquery.com/ui/1.9.2/jquery-ui.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/json3/3.2.4/json3.js"></script>
         <script type="text/javascript" src="js/jquery.uix.filterbuilder.js"></script>
         <script type="text/javascript" src="js/locales/jquery.uix.filterbuilder_fr.js"></script>
         <script type="text/javascript" src="js/rules/jquery.uix.filterbuilder_js.js"></script>
         <script type="text/javascript">
             $(function() {
 
-                $("#filterBuilder").filterbuilder({
-
+                $("#filterBuilder, #filterBuilder2").filterbuilder({
                     change: function() {
-                        console.log($(this).filterbuilder("compile"));
+                        var data = $(this).filterbuilder("serialize");
+
+                        $("#filterBuilder2").filterbuilder("deserialize", data );
+
+                        //var dataStr1, dataStr2;
+                        //console.log("Serialize1", dataStr1 = JSON.stringify(data));
+                        //console.log("Serialize2", dataStr2 = JSON.stringify($("#filterBuilder2").filterbuilder("serialize")) );
+                        //console.log("RESULT == ", dataStr1 === dataStr2);
                     }
                 });
 
@@ -30,6 +37,8 @@
         <h1>jQuery UIx FilterBuilder Demo</h1>
 
         <div id="filterBuilder">
+        </div>
+        <div id="filterBuilder2">
         </div>
 
     </body>

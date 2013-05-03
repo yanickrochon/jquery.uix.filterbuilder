@@ -19,8 +19,7 @@
 
 	var FILTER_SKELETON = '<table class="expr-clause"><tbody><tr>' +
 			'<td><div class="expr-select"></div></td>' +
-			'<td class="ui-widget-content ui-corner-left" style="width: 8px; border-right:none;"></td> ' +
-			'<td><div class="expr-conditions"></div><div class="expr-new-condition"></div></td>' +
+			'<td class="ui-widget-content ui-corner-all"><div class="expr-conditions"></div><div class="expr-new-condition"></div></td>' +
 		'</tr></tbody></table>';
 	var CLAUSE_SKELETON = '<table class="expr-condition"><tbody><tr>' +
 			'<td><div class="expr-controls"></div></td><td><div class="expr-field"></div></td><td><div class="expr-operator"></div></td><td><div class="expr-params"></div></td>' +
@@ -45,7 +44,7 @@
 		_create: function () {
 			this._setLocale();
             this._setRule();
-			this._initFilter(this.element);
+			this._createClause().appendTo(this.element);
 
 
 			this._trigger("create");
@@ -62,7 +61,7 @@
 		},
 
 		_refresh: function () {
-			// TODO : replace all SELECT elements options, update buttons text
+			this.deserialize( this.serialize() );
 		},
 
 		_destroy: function () {
@@ -106,25 +105,25 @@
             this._r = $.uix.filterbuilder.rules[rule];
         },
 
-		_initFilter: function(element) {
+		_createClause: function(operator) {
 			return $(FILTER_SKELETON)
-				.find(".expr-select").append(this._clauseOperatorsSelect(true)).end()
+				.find(".expr-select").append(this._clauseOperatorsSelect(true, operator)).end()
 				.find(".expr-conditions").append(this._clauseCondition(null /* default */)).end()
 				.find(".expr-new-condition").append(this._clauseAddCondition()).end()
-				.appendTo(element)
 			;
 		},
 
 
-		_clauseOperatorsSelect: function(clauseExpressions) {
+		_clauseOperatorsSelect: function(clauseExpressions, operator) {
 			var select = $("<select>");
 			var self = this;
             var defOperKey = "default" + (clauseExpressions ? "Clause" : "Field") + "Expression";
-            var defOper = this._r[defOperKey];
+
+            operator = operator || this._r[defOperKey];
 
 			$.each(this._r[(clauseExpressions ? "clause" : "field") + "Expressions"], function (oper, expression) {
 				select.append($("<option>")
-					.prop("selected", oper === defOper)
+					.prop("selected", oper === operator)
 					.val(oper)
 					.text(self._t(oper)));
 			});
@@ -135,7 +134,7 @@
 			});
 		},
 
-		_clauseCondition: function(operator) {
+		_clauseCondition: function(operator, field, params) {
 			var self = this;
 
             operator = operator || this._r.defaultFieldExpression;
@@ -171,11 +170,11 @@
 
 						return e.preventDefault(), e.stopPropagation(), false;
 					})).end()
-				.find(".expr-field").append( self._clauseField(operator) ).end()
-				.find(".expr-operator").append(self._clauseOperatorsSelect().on("change", function (e) {
+				.find(".expr-field").append( self._clauseParams(true, operator, field) ).end()
+				.find(".expr-operator").append(self._clauseOperatorsSelect(false, operator).on("change", function (e) {
                     var params = $(this).closest(".expr-condition").find(".expr-params");
 					var oldParams = params.children();
-					var newParams = self._clauseParams($(this).val());
+					var newParams = self._clauseParams(false, $(this).val());
 
 					// transfer old -> new params
 					newParams.filter("[data-param-name]").each(function (i, nel) {
@@ -197,30 +196,20 @@
 					params.empty().append(newParams);
 
 				})).end()
-				.find(".expr-params").append( self._clauseParams(operator) ).end();
+				.find(".expr-params").append( self._clauseParams(false, operator, params) ).end();
 			;
 		},
 
-        _clauseField: function (operator) {
-            var self = this;
-            var expr = this._r.fieldExpressions[operator];
-
-            if (expr.params["@1"]) {
-                return this._r.paramHandlers[expr.params["@1"]].render.call(this).attr("data-param-name", "@1")
-                    .on("change", function(e) {	self._trigger("change", e); });
-            } else {
-                return $("<span>");
-            }
-        },
-
-		_clauseParams: function (operator) {
+		_clauseParams: function (fieldParam, operator, serializedValue) {
             var self = this;
             var expr = this._r.fieldExpressions[operator];
             var params = $();
 
             $.each(expr.params, function(name, renderer) {
-                if (name !== "@1") {
-                    params = params.add( self._r.paramHandlers[renderer].render.call(self).attr("data-param-name", name)
+                if ((name === "@1" && fieldParam) || (name !== "@1" && !fieldParam)) {
+                    var value = serializedValue && serializedValue.shift() || false;
+
+                    params = params.add( self._r.paramHandlers[renderer][value ? "deserialize" : "render"].call(self, value).attr("data-param-name", name)
                         .on("change", function(e) {	self._trigger("change", e); }) );
                 }
             });
@@ -242,7 +231,7 @@
 				}))
 				.append($('<a href="#add-sub" role="button">').text(self._t("btn.add.sub")).on("click", function (e) {
 					var subFilter = $("<div>").addClass("sub-clause");
-					self._initFilter(subFilter);
+					self._createClause().appendTo(subFilter);
 					$(this).closest(".expr-new-condition").before(subFilter);
 
 					self._trigger("clauseAdded", e, { subClause: subFilter });
@@ -254,57 +243,150 @@
 
 		compile: function () {
 			return _compile(this.element, this);
-		}
+		},
+
+        serialize: function() {
+            return _serialize(this.element, this);
+        },
+
+        deserialize: function(data) {
+            this.element.empty().append( _deserialize(data, this) );
+        }
 
 	});
 
-
-	function _compile(element, ctx) {
-		var self = this;
-		var left = null;
-		var subClauseStart = ctx._r.clauseEscape.start;
-		var subClauseEnd = ctx._r.clauseEscape.end;
+    function _serialize(element, self) {
+		var stack = [];
 
 		element.find("table.expr-clause").filter(function (e) {
-			return $(this).parentsUntil(element, "table.expr-clause").length === 0;
-		}).each(function (i, subClause) {
-			var glue = $(subClause).find(".expr-select select").val();
+			return $(this).parentsUntil(element, ".sub-clause").length === 0;
+		}).each(function (i, clause) {
+			var glue = $(clause).find(".expr-select:first select").val();
+
+            $(clause).find(".sub-clause").filter(function(e) {
+                return $(this).parentsUntil(clause, "table.expr-clause").length === 0;
+            }).each(function(i, subClause) {
+    			//stack = stack.concat(_serialize($(subClause), self));
+                stack.push(_serialize($(subClause), self));
+            });
+
+			$(clause).find(".expr-conditions").filter(function(e) {
+				return $(this).parentsUntil(clause, "table.expr-clause").length === 0;
+			}).find(".expr-condition").each(function (i, condition) {
+				var operator = $(condition).find(".expr-operator:first select").val();
+                var expr = self._r.fieldExpressions[operator];
+
+                $.each(expr.params, function(name, renderer) {
+                    var value = self._r.paramHandlers[renderer].serialize.call(self, $(condition).find("[data-param-name='" + name + "']"));
+                    stack.push(value);
+                });
+
+                stack.push(operator);
+			});
+
+            stack.push(glue);
+		});
+
+		return stack;
+	};
+
+    function _deserialize(data, self) {
+        var stack = [];
+        var conditions = [];
+        var clause;
+        var subClauses = $();
+
+        $.each(data, function(i, token) {
+
+            if ($.isArray(token)) {
+
+                subClauses = subClauses.add( $("<div>").addClass("sub-clause").append( _deserialize(token, self) ) );
+
+            } else if (self._r.clauseExpressions[token]) {
+                // if this is a clause token, wrap everything
+
+				clause = self._createClause(token).find(".expr-conditions").empty().end();
+                if (subClauses.length) {
+				    clause.find(".expr-new-condition:first").before( subClauses );
+                }
+
+                $.each(conditions, function(i, condition) {
+                    clause.find(".expr-conditions").filter(function(e) {
+			            return $(this).parentsUntil(clause, "table.expr-clause").length === 0;
+		            }).append( condition );
+                });
+
+                stack = [];  // reset stack
+                conditions = [];
+
+            } else if (self._r.fieldExpressions[token]) {
+                // if this is a condition token
+                var field;
+                var params;
+                $.each(stack, function(i, value) {
+                    if (!field) {
+                        field = [value];
+                    } else {
+                        if (!params) params = [];
+                        params.push(value);
+                    }
+                });
+                stack = [];  // reset stack
+
+                conditions.push( self._clauseCondition(token, field, params) );
+
+            } else {
+                // otherwise, stack it
+                stack.push(token);
+            }
+        });
+
+        return clause;
+    };
+
+	function _compile(element, self) {
+        // TODO : compile from serialized data instead...
+
+		var left = null;
+
+		element.find("table.expr-clause").filter(function (e) {
+			return $(this).parentsUntil(element, ".sub-clause").length === 0;
+		}).each(function (i, clause) {
+			var glue = $(clause).find(".expr-select:first select").val();
 			var right;
 
-			$(subClause).find(".expr-conditions").filter(function(e) {
-				return $(this).parentsUntil(subClause, "table.expr-clause").length === 0;
-			}).find(".expr-condition").each(function (i, clause) {
-				var operator = $(clause).find(".expr-operator select").val();
-                var expr = ctx._r.fieldExpressions[operator];
+			$(clause).find(".expr-conditions").filter(function(e) {
+				return $(this).parentsUntil(clause, "table.expr-clause").length === 0;
+			}).find(".expr-condition").each(function (i, condition) {
+				var operator = $(condition).find(".expr-operator:first select").val();
+                var expr = self._r.fieldExpressions[operator];
 				var values = {};
 
                 $.each(expr.params, function(name, renderer) {
-                    values[name] = ctx._r.paramHandlers[renderer].format.call(self, $(clause).find("[data-param-name='" + name + "']")) || "";
+                    values[name] = self._r.paramHandlers[renderer].format.call(self, $(condition).find("[data-param-name='" + name + "']")) || "";
                 });
 
-				right = formatExpression(ctx._r.fieldExpressions[operator].pattern, ctx._r.operators, values);
-
+				right = formatExpression(self._r.fieldExpressions[operator].pattern, self._r.operators, values);
 				if (left) {
-					left = formatExpression(ctx._r.clauseExpressions[glue].pattern, ctx._r.operators, [left, right]);
+					left = formatExpression(self._r.clauseExpressions[glue].pattern, self._r.operators, { "@1":left, "@2":right });
 				} else {
 					left = right;
 				}
-			});
+			}).end().end().end().find(".sub-clause").filter(function(e) {
+                return $(this).parentsUntil(clause, "table.expr-clause").length === 0;
+            }).each(function(i, subClause) {
+    			right = _compile($(subClause), self);
+			    if (right) {
+				    if (left) {
+					    left = formatExpression(self._r.clauseExpressions[glue].pattern, self._r.operators, { "@1":left, "@2":right });
+				    } else {
+					    left = right;
+				    }
+    			}
+            });
 
-			right = _compile($(subClause), ctx);
-			if (right) {
-				if (left) {
-					left = formatExpression(ctx._r.clauseExpressions[glue].pattern, ctx._r.operators, [left, subClauseStart + right + subClauseEnd]);
-				} else {
-					left = right;
-				}
-			}
-
-			// wrap if necessary
-			right = formatExpression(ctx._r.clauseExpressions[glue].wrap, ctx._r.operators, { "@1": left });
-			if (right) {
-				left = right;
-			}
+		    // wrap subClause
+		    left = formatExpression(self._r.clauseExpressions[glue].wrap || self._r.defaultClauseWrap, self._r.operators, { "@1": left });
 		});
 
 		return left;

@@ -29,13 +29,13 @@
         return value;
     };
 
-    $.uix.filterbuilder.rules['js'] = {
+    var rules = $.uix.filterbuilder.rules['js'] = {
         //features: {  // not implemented
         //    subClauses: true,           // are subclauses allowed?
         //    subClauseMaxDepth: 0,       // maximum depth of sub clauses
         //    clauseConditionCount: 0,    // maximum number of conditions per clause
         //},
-        clauseEscape: { start: '(', end: ')' },
+        defaultClauseWrap: "(@1)",
         defaultClauseExpression: "expr.match.any",
         defaultFieldExpression: "expr.equal",
 
@@ -88,19 +88,28 @@
 
         paramHandlers: {
             "field": {
-                render: function() {
-                    return $("<input>").prop("type", "text").autocomplete({
+                render: function(value) {
+                    return $("<input>").prop("type", "text").val(value || "").autocomplete({
                         source: this.options.fields
                     });
                 },
                 format: function(element) {
                     return [quoteField(element.val() || "")];
+                },
+                serialize: function(element) {
+                    return element.data("param-name") + "=" + (element.val() || "");
+                },
+                deserialize: function(data) {
+                    var parts = data.split("=");
+                    console.log(parts);
+                    return rules.paramHandlers["field"].render.call(this).attr("data-param-name", parts[0]).val(parts[1] || "");
                 }
             },
             "any": {
-                render: function() {
-                    var check = $("<input>").prop("type", "checkbox").uniqueId();
-                    var label = $("<label>").prop("for", check.prop("id")).text(this._t("param.check.field"));
+                render: function(value) {
+                    var parts = (value || "").split("/");
+                    var check = $("<input>").prop("type", "checkbox").prop("checked", !!parseInt(parts[0])).uniqueId();
+                    var label = $("<label>").prop("for", check.prop("id")).text(this._t("param.check.field")).val(parts.slice(1).join("/") || "");
                     return check.add(label).add($("<input>").prop("type", "text").autocomplete({
                         source: this.options.fields
                     }));
@@ -114,6 +123,18 @@
                         val = quoteValue(val);
                     }
                     return [val];
+                },
+                serialize: function(element) {
+                    var checked = element.filter("input:checkbox").is(":checked");
+                    var val = element.filter("input[type='text']").val() || "";
+                    return element.data("param-name") + "=" + (checked ? 1 : 0) + "/" + val;
+                },
+                deserialize: function(data) {
+                    var parts = data.split("=");
+                    var vals = (parts[1] || "").split("/");
+                    return rules.paramHandlers["any"].render.call(this)
+                        .filter("input[type='checkbox']").prop("checked", !!parseInt(vals[0])).end()
+                        .filter("input[type='text']").val(vals[1] || "").end();
                 }
             }
         }
