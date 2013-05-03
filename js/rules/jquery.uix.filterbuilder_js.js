@@ -105,13 +105,18 @@
                 }
             },
             "any": {
-                render: function(value) {
+            	render: function(value) {
+            		var self = this;
                     var parts = (value || "").split("/");
-                    var check = $("<input>").prop("type", "checkbox").prop("checked", !!parseInt(parts[0])).uniqueId();
+                    var check = $("<input>").prop("type", "checkbox").prop("checked", !!parseInt(parts[0])).uniqueId()
+						.on("click change", function () {
+							input.autocomplete("option", "source", $(this).is(":checked") ? self.options.fields : []);
+						});
                     var label = $("<label>").prop("for", check.prop("id")).text(this._t("param.check.field")).val(parts.slice(1).join("/") || "");
-                    return check.add(label).add($("<input>").prop("type", "text").autocomplete({
-                        source: this.options.fields
-                    }));
+                    var input = $("<input>").prop("type", "text").autocomplete({
+						source: !!parseInt(parts[0]) ? this.options.fields : []
+                    });
+                    return $("<nobr>").append(check).append(label).append(input);
                 },
                 format: function(element) {
                     var checked = element.filter("input:checkbox").is(":checked");
