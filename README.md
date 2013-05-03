@@ -24,3 +24,5 @@ Features
 - localizable
 - customize available fields
 - customize clause operators and field operators
+- serialization to a JSON array
+- deserialization from a JSON array
